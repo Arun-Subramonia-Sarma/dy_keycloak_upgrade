@@ -1,0 +1,12 @@
+apiVersion: v2
+name: yms-keycloak
+description: Deployment for keycloak with custom configuration for Dynamic Yard
+icon: https://avatars3.githubusercontent.com/u/15859888
+type: application
+version: 2.9.7
+appVersion: 26.1.4
+
+dependencies:
+- name: keycloakx
+  version: "7.0.1"
+  repository: "https://codecentric.github.io/helm-charts"

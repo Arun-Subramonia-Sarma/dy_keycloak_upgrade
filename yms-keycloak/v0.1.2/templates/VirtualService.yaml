@@ -1,0 +1,45 @@
+{{- if .Values.keycloak.istio.enabled -}}
+{{- $fullName := include "keycloak.fullname" . -}}
+{{- $svcPort := .Values.keycloak.service.httpPort -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+{{- if .Values.keycloak.istio.hosts }}
+  hosts:
+    {{- with .Values.keycloak.istio.hosts }}
+    {{- tpl . $ | trim | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.keycloak.istio.gateways }}
+  gateways:
+    {{- with .Values.keycloak.istio.gateways }}
+    {{- tpl . $ | trim | nindent 4 }}
+    {{- end }}  
+{{- end }}
+  http:
+{{- range .Values.keycloak.istio.http }}
+  - match:
+    {{- range .match }}
+    - uri:
+        {{- if .uri.prefix }}
+        prefix: {{.uri.prefix}}
+        {{- end }}
+        {{- if .uri.exact }}
+        exact: {{ .uri.exact}}
+        {{- end }}
+    {{- end}}
+    {{- if and .rewrite .rewrite.uri }}
+    rewrite:
+      uri: {{ .rewrite.uri}}
+      {{- end}}
+    route:
+    - destination:
+        port:
+          number:  {{ $svcPort }}
+        host: {{ $fullName }}-http
+{{- end }}
+{{- end }}

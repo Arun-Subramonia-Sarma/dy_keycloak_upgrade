@@ -1,0 +1,30 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: {{ include "keycloak.fullname" . }}-root-certificate
+  annotations:
+{{- if .Values.keycloakx.update_config }}
+    "helm.sh/hook": "pre-install,pre-upgrade"
+{{- else }}
+    "helm.sh/hook": "pre-install"
+{{- end }}
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  refreshInterval: {{ .Values.keycloakx.secret_store.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.keycloakx.secret_store.name }}
+    kind: {{ .Values.keycloakx.secret_store.kind }}
+  target:
+    name: {{ include "keycloak.fullname" . }}-root-certificate
+    creationPolicy: Owner
+  data:
+  {{- range .Values.keycloakx.secret_store.rootCertificate }}
+  - secretKey: {{ .name}}
+    remoteRef:
+      conversionStrategy: {{ .remoteRef.conversionStrategy | default "Default" }}
+      decodingStrategy: {{  .remoteRef.decodingStrategy | default "None" }}
+      key: {{ .remoteRef.key}}
+      {{- if eq $.Values.keycloakx.cloud "aws" }}
+      property: {{ .remoteRef.property}}
+      {{- end }}
+  {{- end }}

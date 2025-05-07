@@ -1,0 +1,198 @@
+fullnameOverride: keycloak
+nameOverride: keycloak
+keycloakx:
+  # Default path used by the codecentric chart
+  proxyPath: keycloak
+  fullnameOverride: keycloak
+  nameOverride: keycloak
+  command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--optimized"
+  - "--http-enabled=true"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+  - "--hostname-strict-https=false"
+
+  # To use an external postgres DB, set this
+  # to false, the connection args
+  # must then be set as env vars
+  # When this is enabled, any of the PG connection
+  # arg env vars set here will be overwrittein
+  postgresql:
+    enabled: true
+  http:
+    relativePath: keycloak
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    httpPort: 80
+  # note that extraEnv is a string, not yaml, confusingly.
+  extraEnv: |
+    - name: KEYCLOAK_USER
+      value: admin
+    - name: KEYCLOAK_PASSWORD_FILE
+      value: /secrets/admin-password/password
+    - name: KEYCLOAK_IMPORT
+      value: /realm/realm.json
+    - name: PROXY_ADDRESS_FORWARDING
+      value: "true"
+    - name: JAVA_OPTS_APPEND
+      value: >-
+        -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+
+  # The following configuration is for when connecting
+  # to an external PG database.  When postgres is enabled
+  # all of these environment variables are overwritten
+  extraEnvFrom: |
+    - secretRef:
+        name: '{{ include "keycloak.fullname" . }}-external-db'
+    - secretRef:
+        name: '{{ include "keycloak.fullname" . }}-admin-password'
+    - configMapRef:
+        name: '{{ include "keycloak.fullname" . }}-external-db'
+    - configMapRef:
+        name: '{{ include "keycloak.fullname" . }}-logging-config'
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+
+  externaldb:
+    KC_DB: postgres
+    KC_DB_URL_HOST: "Please use correct db config map"
+    KC_DB_URL_PORT: "5432"
+    KC_DB_URL_DATABASE: yms
+    KC_DB_SCHEMA: keycloak
+    KC_DB_USERNAME: keycloak
+    KC_DB_URL_PROPERTIES: ?sslmode=verify-full
+    DB_PASSWORD: "please use correct password secret value file"
+
+  logging:
+    KC_LOG_LEVEL: INFO
+
+  startupProbe: ""
+
+  tolerations:
+  - effect: NoSchedule
+    key: project
+    operator: Equal
+    value: dyf
+  resources:
+    limits:
+      memory: "1024M"
+      cpu: "500m"
+    requests:
+      memory: "550M"
+      cpu: "50m"
+  imagepullSecrets: []
+  image:
+    repository: fourkitesdevelopment.azurecr.io/facility/dyf/yms-keycloak # this might need to be tweaked to allow repository settings
+    tag: V21.1.2-9
+    pullPolicy: IfNotPresent
+  proxyAddressForwarding: true
+  ingress:
+    enabled: false
+    annotations:
+      appgw.ingress.kubernetes.io/appgw-ssl-certificate: ng-np-fourkites-com-wildcard-cert
+      kubernetes.io/ingress.class: azure/application-gateway
+  istio:
+    enabled: false
+    hosts: |
+      - ""
+    gateways: |
+      - "istio-system/default-gateway"
+    http:
+    - match:
+      - uri:
+          prefix: /keycloak
+        
+  extraVolumes: |
+    - name: realm-secret
+      secret:
+        secretName: realm-secret
+    - name: admin-password
+      secret:
+        secretName: {{ include "keycloak.fullname" . }}-admin-password 
+    - name: cloudsql-creds
+      secret:
+        secretName: cloudsql-creds
+    - name: certificate-secret
+      secret:
+        secretName: {{ include "keycloak.fullname" . }}-root-certificate
+
+  extraVolumeMounts: |
+    - name: realm-secret
+      mountPath: "/realm/"
+      readOnly: true
+    - name: admin-password
+      mountPath: "/secrets/admin-password"
+      readOnly: true
+    - name: certificate-secret
+      mountPath: "/opt/keycloak/.postgresql"
+
+    
+
+
+  # Required to change the webcontext for a different base path
+  startupScripts: {}
+    # adjustWebContext.cli: |
+    #   embed-server --server-config=standalone-ha.xml --std-out=echo
+    #   batch
+    #   echo Adjusting web-context
+    #   /subsystem=keycloak-server/:write-attribute(name=web-context,value={{ .Values.proxyPath }})
+    #   echo Finished configuring web-context
+    #   run-batch
+    #   stop-embedded-server
+
+  # Need to modify the path because we have a different base path
+  livenessProbe: |
+    httpGet:
+      path: /{{ .Values.proxyPath }}/
+      port: http
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+
+  # Need to modify the path because we have a different base path
+  readinessProbe: |
+    httpGet:
+      path: /{{ .Values.proxyPath }}/realms/master
+      port: http
+    initialDelaySeconds: 20
+    timeoutSeconds: 1
+
+  secret_store:
+    name: yms-keycloak
+    kind: ClusterSecretStore
+    refreshInterval: 1h
+    adminPassword:
+      - name: password
+        remoteRef: 
+          key: ADMIN-PASSWORD
+          property: ADMIN_PASSWORD
+    dbSecrets:
+      - name: KC_DB_PASSWORD
+        remoteRef: 
+          key: KC-DB-PASSWORD
+          property: KC_DB_PASSWORD
+    rootCertificate:
+      - name: root.crt
+        remoteRef: 
+          key: root-crt
+          decodingStrategy: Base64
+          property: KC_DB_PASSWORD
+
+# Password for the super user for postgres, replace in a secret
+global:
+  postgresql:
+    postgresqlPassword: password
+
+# our local route object
+route:
+  enabled: false
+  host: yms-insight.127.0.0.1.nip.io
+  # service name defaults to RELEASE.NAME-http
+  serviceName: ""
+  tls: {}
+
+

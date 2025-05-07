@@ -1,0 +1,30 @@
+##########################################
+# CHART MANAGEMENT
+##########################################
+#### To add the repo
+helm repo add dyf-repo  https://raw.githubusercontent.com/cloudqwest/yms-kubernetes/charts/ --username <<username for the chart>> --password <<password for tehc chart>>
+--username - Github user name
+--password - Github personnal access token
+
+To generate personna access token for the user Rightclick on the user(on the right top corner) -> settings -> Developer Settings -> Personnal access tokens -> Tokens (classic) -> Generate new token -> Generate new Token(Classic)
+
+Adding the repo required is required only once
+
+#### To update the repo chart
+helm repo update dyf-repo
+
+#### TO delete the repo chart
+helm delete repo dyf-repo
+
+#########################################
+# BRANCH DETAILS
+#########################################
+
+---> charts         - contains the published charts
+---> charts-develop - contains the raw chart which contains the source code
+---> main           - contains the values for the charts for various environment 
+
+##########################################
+# SAMPLE COMMAND TO EXECUTE THE CHART
+##########################################
+helm upgrade --install --create-namespace keycloak dyf-repo/keycloak -n yms-keycloak -f yms-keycloak/aure/values-dev-azure.yaml

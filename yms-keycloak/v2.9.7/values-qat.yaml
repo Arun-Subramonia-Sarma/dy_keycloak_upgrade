@@ -1,0 +1,116 @@
+update_config: true
+ingress:
+  appgw:
+    fk-ingress:
+      enabled: true
+      className: "azure-application-gateway"
+      annotations:
+        appgw.ingress.kubernetes.io/appgw-ssl-certificate: wildcard-fourkites-ssl
+        appgw.ingress.kubernetes.io/health-probe-interval: "15"
+        appgw.ingress.kubernetes.io/health-probe-path: /expkeycloak/realms/master
+        appgw.ingress.kubernetes.io/health-probe-port: "8080"
+        appgw.ingress.kubernetes.io/health-probe-timeout: "10"
+      hosts:
+        - host: dy-qat.fourkites.com
+          paths: 
+          - path: /expkeycloak/metrics
+            serviceName: keycloak-http
+            servicePort: 9000
+          - path: "/expkeycloak/*"
+            serviceName: keycloak-http
+            servicePort: 80
+externalsecrets:
+  name: yms-keycloak
+  kind: ClusterSecretStore
+  refreshInterval: 1h
+  # labels:
+  #   root1-label1: value1
+  # annotations:
+  #   root1-annotation1: value1
+  es:
+    db-secrets:
+      data:
+        DB_PASSWORD:
+          key: KC-DB-PASSWORD
+          property: KC-DB-PASSWORD
+          conversionStrategy: Default
+keycloakx:
+  nameOverride: keycloak
+  fullnameOverride: keycloak
+  replicas: 1
+  image:
+    repository: fourkitesdevelopment.azurecr.io/facility/dyf/yms-keycloak-optimized
+    tag: 26.2.1-rc3
+    pullPolicy: Always
+  # image:
+  #   tag: "26.1.4"
+  command:
+    - "/opt/keycloak/bin/kc.sh"
+    - "--verbose"
+    - "start"
+    - "--log-level=INFO,com.fk:trace"
+    - "--optimized"
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/scheme: "http"  # or https
+    prometheus.io/path: "/expkeycloak/metrics"
+    prometheus.io/port: "9000"
+  podLabels:
+    app: keycloak-poc
+    component: authentication
+    tier: backend
+    environment: qat
+    version: 26.2.1
+  database:
+    existingSecret: keycloak-yms-keycloak-db-secrets
+    existingSecretKey: DB_PASSWORD
+    vendor: postgres
+    hostname: psql-dyf-new-flexi-qat.postgres.database.azure.com
+    port: 5432
+    database: keycloak_v1
+    username: keycloak
+    password: 
+  extraEnv: |
+    - name: JAVA_OPTS
+      value: "-Dhibernate.show_sql=true -Dhibernate.format_sql=true -Dorg.hibernate.SQL=DEBUG -Dorg.hibernate.type.descriptor.sql=TRACE"
+    - name: KC_PROXY
+      value: "edge"
+    - name: KC_PROXY_ADDRESS_FORWARDING
+      value: "true"
+    - name: KC_PROXY_HEADERS
+      value: xforwarded
+    - name: KEYCLOAK_IMPORT
+      value: realm.json
+    - name: KC_HEALTH_ENABLED
+      value: "true"
+    - name: KC_DB_SCHEMA
+      value: keycloak
+    - name: KC_FEATURES
+      value: "admin-api,account-api,admin-fine-grained-authz"
+    - name: KC_HOSTNAME_STRICT
+      value: "false"  
+    - name: KUBERNETES_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: JGROUPS_DISCOVERY_PROTOCOL
+      value: dns.DNS_PING
+    - name: JGROUPS_DISCOVERY_PROPERTIES
+      value: "dns_query=keycloak-headless.$(KUBERNETES_NAMESPACE).svc.cluster.local"
+    - name: CACHE_OWNERS_COUNT
+      value: "2"
+    - name: CACHE_OWNERS_AUTH_SESSIONS_COUNT
+      value: "2"
+    - name: KC_CACHE
+      value: "ispn"
+    - name: KC_CACHE_STACK
+      value: "kubernetes"
+    - name: JAVA_OPTS_APPEND
+      value: "-Djgroups.dns.query=keycloak-headless"
+    - name: KC_PROXY_ADDRESS_FORWARDING
+      value: "true"
+  service:
+    httpPort: 80
+  http:
+    # For backwards compatibility reasons we set this to the value used by previous Keycloak versions.
+    relativePath: "/expkeycloak"

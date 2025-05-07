@@ -1,0 +1,36 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: route-keycloak
+status:
+  ingress: []
+spec:
+  host: {{ .Values.route.host }}
+  path: "/{{ .Values.keycloak.proxyPath }}"
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+{{- if .Values.route.tls.key }}
+    key: |
+{{ .Values.route.tls.key | indent 6}}
+{{- end }}
+{{- if .Values.route.tls.crt }}
+    certificate: |
+{{ .Values.route.tls.crt | indent 6 }}
+{{- end }}
+{{- if .Values.route.tls.cacrt }}
+    caCertificate: |
+{{ .Values.route.tls.cacrt | indent 6 }}
+{{- end }}
+  port:
+    targetPort: http
+  to:
+    weight: 1
+    kind: Service
+    {{- if .Values.route.serviceName }}
+    name: {{ .Values.route.serviceName }}
+    {{- else }}
+    name: "{{.Release.Name}}-http"
+    {{- end}}
+{{- end }}
